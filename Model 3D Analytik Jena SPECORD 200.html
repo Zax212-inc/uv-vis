@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Model 3D Analytik Jena SPECORD 200</title>
+<style>
+:root{--bg:#e9edf1;--fg:#1d2733;--card:#ffffffd9;--bd:#c5ccd4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b2027;--fg:#e6ebf0;--card:#232a33d9;--bd:#3b4551}}
+:root[data-theme="dark"]{--bg:#1b2027;--fg:#e6ebf0;--card:#232a33d9;--bd:#3b4551}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+#ui{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+#ui button{background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:10px;padding:9px 13px;font-size:14px;cursor:pointer;backdrop-filter:blur(6px)}
+#t{position:fixed;left:12px;top:calc(10px + env(safe-area-inset-top,0px));background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;font-size:13px;line-height:1.35}
+#t b{font-size:15px}
+#p{position:fixed;right:8px;top:calc(10px + env(safe-area-inset-top,0px));width:230px;display:none;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.4;backdrop-filter:blur(6px)}
+#p input[type=range]{width:100%}
+#p button{margin-top:6px;width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:7px;cursor:pointer}
+#ro{margin-top:8px;font-variant-numeric:tabular-nums}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="t"><b>Spektrofotometer UV-Vis</b><br>Analytik Jena SPECORD 200<br><span style="opacity:.7">Seret = putar · scroll/cubit = zoom</span></div>
+<div id="p"><b>Jalur cahaya di dalam alat</b><div style="opacity:.75;margin:3px 0 8px">Sumber → monokromator → sampel (diserap / diteruskan) → detektor → elektronik → komputer</div>Panjang gelombang: <b id="vL">450</b> nm<input id="rL" type="range" min="200" max="800" value="450">Konsentrasi sampel: <b id="vC">60</b>%<input id="rC" type="range" min="0" max="100" value="60"><button id="bS">Pindai 200–800 nm</button><div id="ro"></div></div>
+<div id="ui">
+<button id="bLid">Buka tutup kompartemen</button>
+<button id="bC1">Masukkan kuvet sampel</button><button id="bC2">Masukkan kuvet referensi</button><button id="bBm">Berkas cahaya</button><button id="bZ">Zoom kompartemen</button><button id="bX">Komponen dalam (X-ray)</button><button id="bAll">Lihat semua</button>
+<button id="bRot">Putar otomatis</button>
+<button id="bF">Depan</button><button id="bB">Belakang</button><button id="bT">Atas</button><button id="bI">Isometrik</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const cv=document.getElementById('c');
+const R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));R.shadowMap.enabled=true;
+const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+const S=new THREE.Scene();S.background=new THREE.Color(dark?0x1b2027:0xe9edf1);
+const cam=new THREE.PerspectiveCamera(40,1,1,500);
+const ctl=new THREE.OrbitControls(cam,cv);ctl.target.set(0,10,0);ctl.enableDamping=true;ctl.maxPolarAngle=Math.PI/2.02;
+S.add(new THREE.HemisphereLight(0xffffff,0x8a96a3,.85));
+const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(40,80,60);dl.castShadow=true;
+dl.shadow.mapSize.set(1024,1024);Object.assign(dl.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:10,far:200});S.add(dl);
+
+const M=(c,r=.6,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+const cream=M(0xe6dcbf,.7),blue=M(0x2f5f9e,.45),slate=M(0x3a4252,.6),black=M(0x15171a,.7),metal=M(0xb9bec4,.3,.8),red=M(0xc8102e,.5);
+function rbox(w,h,d,r,mat){const b=Math.min(r,.8),x=-(w-2*b)/2,y=-(h-2*b)/2,W=w-2*b,H=h-2*b,q=Math.max(.01,r-b);
+ const s=new THREE.Shape();s.moveTo(x+q,y);s.lineTo(x+W-q,y);s.quadraticCurveTo(x+W,y,x+W,y+q);s.lineTo(x+W,y+H-q);s.quadraticCurveTo(x+W,y+H,x+W-q,y+H);s.lineTo(x+q,y+H);s.quadraticCurveTo(x,y+H,x,y+H-q);s.lineTo(x,y+q);s.quadraticCurveTo(x,y,x+q,y);
+ const g=new THREE.ExtrudeGeometry(s,{depth:d-2*b,bevelEnabled:true,bevelSize:b,bevelThickness:b,bevelSegments:3,curveSegments:6});g.center();
+ const m=new THREE.Mesh(g,mat);m.castShadow=m.receiveShadow=true;return m}
+function box(w,h,d,mat,x,y,z,p=S){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;p.add(m);return m}
+function put(m,x,y,z,p=S){m.position.set(x,y,z);p.add(m);return m}
+function label(lines,w,h,bg,fg,px,bold){const c=document.createElement('canvas');c.width=w*40;c.height=h*40;const g=c.getContext('2d');
+ g.fillStyle=bg;g.fillRect(0,0,c.width,c.height);g.fillStyle=fg;g.textAlign='center';g.textBaseline='middle';
+ g.font=(bold?'bold ':'')+px+'px sans-serif';lines.forEach((t,i)=>g.fillText(t,c.width/2,c.height*(i+.5)/lines.length));
+ const t=new THREE.CanvasTexture(c);t.anisotropy=4;return new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:t,transparent:true}))}
+function qr(w,teal){const c=document.createElement('canvas');c.width=c.height=210;const g=c.getContext('2d');g.fillStyle=teal?'#bfe0e3':'#fff';g.fillRect(0,0,210,210);
+ let s=7;const rnd=()=>(s=(s*16807)%2147483647)/2147483647;g.fillStyle=teal?'#2b5fa8':'#111';
+ for(let i=0;i<21;i++)for(let j=0;j<21;j++)if(rnd()>.5)g.fillRect(i*10,j*10,10,10);
+ [[0,0],[14,0],[0,14]].forEach(([a,b])=>{g.fillStyle=teal?'#bfe0e3':'#fff';g.fillRect(a*10-0,b*10,70,70);g.fillStyle=teal?'#2b5fa8':'#111';g.fillRect(a*10+2,b*10+2,66,66);g.fillStyle=teal?'#bfe0e3':'#fff';g.fillRect(a*10+12,b*10+12,46,46);g.fillStyle=teal?'#2b5fa8':'#111';g.fillRect(a*10+22,b*10+22,26,26)});
+ const t=new THREE.CanvasTexture(c);return new THREE.Mesh(new THREE.PlaneGeometry(w,w),new THREE.MeshBasicMaterial({map:t}))}
+
+/* lantai & meja */
+const tc=document.createElement('canvas');tc.width=tc.height=256;const tg=tc.getContext('2d');tg.fillStyle=dark?'#cfd6dc':'#f3f5f6';tg.fillRect(0,0,256,256);tg.strokeStyle='#b7a77a';tg.lineWidth=4;tg.strokeRect(0,0,256,256);
+const tt=new THREE.CanvasTexture(tc);tt.wrapS=tt.wrapT=THREE.RepeatWrapping;tt.repeat.set(12,12);
+const fl=new THREE.Mesh(new THREE.PlaneGeometry(240,240),new THREE.MeshStandardMaterial({map:tt,roughness:.35}));fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;S.add(fl);
+
+/* badan */
+const dev=new THREE.Group();S.add(dev);
+put(rbox(60,4,52,1,slate),0,2,0,dev);
+put(rbox(46,7,50,2,cream),7,7.5,0,dev);box(23.2,5,50,cream,-4.4,13.5,0,dev);box(22.8,5,5.6,cream,18.6,13.5,-22.2,dev);box(22.8,5,5.6,cream,18.6,13.5,22.2,dev);box(1.4,5,38.8,cream,29.3,13.5,0,dev);            // bodi utama
+put(rbox(24,20,46,2.5,cream),-18,14,2,dev);         // rumah lampu (kiri)
+// ventilasi blok kiri
+for(let i=0;i<10;i++)box(18,.15,.6,M(0x8f8a78),-18,24.05,8+i*1.25,dev);
+// ventilasi belakang atas
+for(let i=0;i<10;i++)box(14,.1,.5,M(0x8f8a78),0,16.05,-23+i*.9,dev).visible=true;
+// strip merah & logo
+box(37,.35,.1,red,11.5,6.2,25.05,dev);box(21,.35,.1,red,-18,6.2,25.05,dev);
+const logo=label(['analytikjena'],11,2.2,'#e6dcbf','#c8102e',64,true);logo.material.map.format;put(logo,-3.5,7.9,25.08,dev);
+put(label(['SPECORD'],12,2.2,'#e6dcbf','#111',70,true),25,9,25.08,dev);
+put(label(['200'],3,1.5,'#222','#fff',60,true),27,7.4,25.08,dev);
+// stiker nomor inventaris
+put(label(['19.01.01.24.2005','2.08.01.11.138...'],13,4.2,'#f4f1ea','#111',64,true),-3,12.5,25.08,dev);
+// LED & tombol
+[[ -10,0x1fa84f],[-8.2,0xd98a1c],[-6.4,0xd2432a]].forEach(([x,c])=>{const m=new THREE.Mesh(new THREE.SphereGeometry(.45,12,8),new THREE.MeshBasicMaterial({color:c}));put(m,x,2.2,26.05,dev)});
+put(label(['ON   UV   VIS'],6,1,'#222','#ddd',38,false),-8.2,.9,26.05,dev);
+[16.5,19.5].forEach(x=>{const c=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,.6,20),black);c.rotation.x=Math.PI/2;put(c,x,8.8,25.2,dev)});
+// stiker atas
+put((()=>{const m=label(['SPECTROPHOTOMETER UV-VISIBLE','(3)'],13,3.4,'#fff','#10204a',42,true);m.rotation.x=-Math.PI/2;return m})(),0,16.04,-3,dev);
+const q1=qr(5.4,false);q1.rotation.x=-Math.PI/2;put(q1,-2.6,16.05,8,dev);
+const q2=qr(4.2,true);q2.rotation.x=-Math.PI/2;put(q2,4.4,16.05,8,dev);
+// sakelar samping & belakang
+box(.5,3,2.2,black,-30.2,9,-12,dev);box(.6,3.2,1.6,black,-30.4,2,-16,dev);
+box(2.5,2,.5,black,-30,2,-26.1,dev).visible=false;
+// panel belakang
+[[ -4,'ACC'],[4,'APG']].forEach(([x])=>box(3,1.6,.6,M(0xa88f4b,.4,.6),x+14,2,-26.2,dev));
+box(2.4,1.8,.6,metal,22,2,-26.2,dev);box(3,1.6,.6,M(0xa88f4b,.4,.6),26.5,2,-26.2,dev);
+const cab=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([[22,2,-26.5],[22,.6,-34],[-10,.6,-36],[-42,.6,-20],[-48,5,-13.5]].map(p=>new THREE.Vector3(...p))),24,.35,8),M(0x2a4fd0,.5));cab.castShadow=true;dev.add(cab);
+// engsel belakang
+[3,25].forEach(x=>box(2.6,1.6,1.4,black,x,16.4,-24.6,dev));
+// kompartemen sampel
+box(21.4,.3,38.6,M(0x0c0d0f,.9),18,11.05,0,dev);
+box(21.4,4.9,.2,M(0x0c0d0f,.9),18,13.55,-19.3,dev);box(21.4,4.9,.2,M(0x0c0d0f,.9),18,13.55,19.3,dev);box(.2,4.9,38.6,M(0x0c0d0f,.9),7.3,13.55,0,dev);box(.2,4.9,38.6,M(0x0c0d0f,.9),28.5,13.55,0,dev);
+[-10,-2,6,14].forEach(z=>{const r=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,20,14),metal);r.rotation.z=Math.PI/2;r.castShadow=true;put(r,18,11.5,z,dev)});
+const cuv=[];
+[[-10,0x4aa8e8,'Sampel'],[6,0xcfe9f5,'Referensi']].forEach(([z,lc,nm])=>{
+ box(3,.4,2.4,black,23,11.95,z,dev);
+ [-1,1].forEach(s=>box(3,2.2,.45,black,23,13.25,z+s*.875,dev));
+ const g=new THREE.Group();
+ const gl=new THREE.Mesh(new THREE.BoxGeometry(1.25,4.2,1.25),new THREE.MeshPhysicalMaterial({color:0xd8f0ff,transparent:true,opacity:.28,roughness:.05,depthWrite:false}));
+ const lq=new THREE.Mesh(new THREE.BoxGeometry(1.05,2.6,1.05),new THREE.MeshStandardMaterial({color:lc,transparent:true,opacity:nm=='Sampel'?.8:.4}));lq.position.y=-.5;
+ const bt=new THREE.Mesh(new THREE.BoxGeometry(1.25,.3,1.25),new THREE.MeshStandardMaterial({color:0xf4f4f4,transparent:true,opacity:.6}));bt.position.y=-1.95;
+ g.add(gl,lq,bt);g.position.set(23,24.25,z);dev.add(g);
+ const bm=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,21.3,8),new THREE.MeshBasicMaterial({color:0xffc933}));bm.rotation.z=Math.PI/2;bm.position.set(17.85,13.8,z);bm.visible=false;dev.add(bm);
+ cuv.push({g,t:0,goal:0,bm,nm});
+});
+
+
+
+/* tutup biru berengsel */
+const lid=new THREE.Group();lid.position.set(0,16,-20);dev.add(lid);
+put(rbox(21,5.5,40,1.4,blue),18,2.75,20,lid);
+for(let i=0;i<14;i++)box(.5,.12,3,M(0x172c4d),18-9+i*1.35,5.55,3,lid);
+put(rbox(21,1.6,12,.8,blue),18,5.9,30,lid);
+box(2.5,1.6,1.4,black,3,.4,.2,lid).position.set(8.2,.4,.2);
+let lidT=0,lidGoal=0;
+
+/* kamera & kontrol */
+function fit(){const w=innerWidth,h=innerHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}
+addEventListener('resize',fit);fit();
+let goal=null;function view(p,t){goal={p:new THREE.Vector3(...p),t:new THREE.Vector3(...t)}}
+cam.position.set(55,45,85);
+view([55,45,85],[0,10,0]);
+const $=id=>document.getElementById(id);
+$('bLid').onclick=()=>{lidGoal=lidGoal?0:1;$('bLid').textContent=lidGoal?'Tutup kompartemen':'Buka tutup kompartemen';if(lidGoal)view([20,70,60],[10,12,0])};
+$('bRot').onclick=()=>{ctl.autoRotate=!ctl.autoRotate;ctl.autoRotateSpeed=1.5};
+$('bF').onclick=()=>view([0,22,95],[0,10,0]);
+$('bB').onclick=()=>view([0,26,-95],[0,10,0]);
+$('bT').onclick=()=>view([0,120,.1],[0,10,0]);
+$('bI').onclick=()=>view([55,45,85],[0,10,0]);
+function upd(){$('bC1').textContent=(cuv[0].goal?'Keluarkan':'Masukkan')+' kuvet sampel';$('bC2').textContent=(cuv[1].goal?'Keluarkan':'Masukkan')+' kuvet referensi'}
+function toggle(c){c.goal=c.goal?0:1;if(c.goal&&!lidGoal){lidGoal=1;$('bLid').textContent='Tutup kompartemen'}upd();view([34,48,40],[20,13,-2])}
+$('bC1').onclick=()=>toggle(cuv[0]);$('bC2').onclick=()=>toggle(cuv[1]);
+$('bZ').onclick=()=>{if(!lidGoal){lidGoal=1;$('bLid').textContent='Tutup kompartemen'}view([34,48,40],[20,13,-2])};
+let bmOn=false;$('bBm').onclick=()=>{bmOn=!bmOn;cuv.forEach(c=>c.bm.visible=bmOn)};
+const rc=new THREE.Raycaster(),mp=new THREE.Vector2();let dn=null;
+cv.addEventListener('pointerdown',e=>{dn=[e.clientX,e.clientY]});
+cv.addEventListener('pointerup',e=>{if(!dn||Math.hypot(e.clientX-dn[0],e.clientY-dn[1])>5)return;mp.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);rc.setFromCamera(mp,cam);const h=rc.intersectObjects(cuv.map(c=>c.g),true)[0];if(h){const c=cuv.find(c=>c.g===h.object.parent);if(c)toggle(c)}});
+/* ===== KOMPONEN DALAM ===== */
+const Y=13.8,inn=new THREE.Group(),lab=new THREE.Group();inn.visible=lab.visible=false;S.add(inn,lab);
+const mb=c=>new THREE.MeshBasicMaterial({color:c}),gm=M(0xc3ccd6,.2,.9),dkm=M(0x333a44,.6);
+function ib(w,h,d,m,x,y,z,ry=0){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.rotation.y=ry;inn.add(o);return o}
+function ic(r,l,m,x,y,z,ax){const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,l,16),m);o.position.set(x,y,z);if(ax=='x')o.rotation.z=Math.PI/2;if(ax=='z')o.rotation.x=Math.PI/2;inn.add(o);return o}
+const mD=mb(0x9a6cff),mH=mb(0xffe9a0);
+ic(1.3,3.5,mD,-27.5,Y,12,'x');ic(.8,5,mH,-22,Y,22,'z');
+const M1=ib(3.4,3,.25,gm,-22,Y,12,Math.PI/4);
+ib(1.2,3,.3,dkm,-23,Y,5);ib(1.2,3,.3,dkm,-21,Y,5);
+const GR=ib(3.6,3.2,.3,M(0xd4b24a,.3,.8),-22,Y,-10,Math.PI/4);
+ib(.3,3,1.2,dkm,-15,Y,-11);ib(.3,3,1.2,dkm,-15,Y,-9);
+ib(3.8,3,.12,new THREE.MeshStandardMaterial({color:0x7fc4ff,transparent:true,opacity:.55}),-9,Y,-10,-Math.PI/4);
+ib(3.4,3,.2,gm,-9,Y,6,-Math.PI/4);
+const dw=[-10,6].map(z=>{ib(1.4,2.8,2.8,dkm,27.8,Y,z);const m=mb(0xffb347);ib(.1,1.8,1.8,m,27.05,Y,z);return m});
+ib(12,.4,26,M(0x1f7a4a,.6),20,8.2,-6);[[16,-14],[24,-2],[20,-8]].forEach(([x,z])=>ib(2,.5,2,black,x,8.6,z));
+[-10,6].forEach(z=>inn.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(27.5,Y,z),new THREE.Vector3(27.5,8.4,z),new THREE.Vector3(20,8.4,z)]),new THREE.LineBasicMaterial({color:0x33cc66}))));
+/* komputer */
+const mon=new THREE.Group();mon.position.set(-48,0,-4);S.add(mon);const gry=M(0x2a2d31,.6);
+box(10,1,10,gry,0,.5,0,mon);box(3,3,3,gry,0,2.5,0,mon);box(24,18,18,gry,0,12,0,mon);
+const sc=document.createElement('canvas');sc.width=512;sc.height=384;const sg=sc.getContext('2d'),st=new THREE.CanvasTexture(sc);
+put(new THREE.Mesh(new THREE.PlaneGeometry(21,15.7),new THREE.MeshBasicMaterial({map:st})),0,12,9.05,mon);
+const spec=new Array(601).fill(null);
+function scr(l,A,T){const g=sg;g.fillStyle='#0b1b33';g.fillRect(0,0,512,384);g.fillStyle='#1d4f91';g.fillRect(0,0,512,26);g.fillStyle='#fff';g.font='bold 15px sans-serif';g.textAlign='left';g.fillText('WinASPECT - Spektrum Absorbansi',10,18);
+ g.fillStyle='#f4f7fb';g.fillRect(50,50,440,280);g.strokeStyle='#cfd8e3';g.fillStyle='#223';g.font='11px sans-serif';g.textAlign='center';g.lineWidth=1;
+ for(let w=200;w<=800;w+=100){const x=50+(w-200)*.7333;g.beginPath();g.moveTo(x,50);g.lineTo(x,330);g.stroke();g.fillText(w,x,345)}
+ g.textAlign='right';for(let a=0;a<=2;a+=.5){const y=330-a*140;g.beginPath();g.moveTo(50,y);g.lineTo(490,y);g.stroke();g.fillText(a.toFixed(1),45,y+4)}
+ g.textAlign='left';g.fillText('Abs',8,55);g.fillText('nm',495,345);
+ g.strokeStyle='#d62828';g.lineWidth=2;g.beginPath();let on=false;for(let i=0;i<=600;i++){if(spec[i]==null){on=false;continue}const x=50+i*.7333,y=330-Math.min(2,spec[i])*140;on?g.lineTo(x,y):g.moveTo(x,y);on=true}g.stroke();
+ g.strokeStyle='#1d4f91';g.setLineDash([4,4]);g.lineWidth=1;const cx=50+(l-200)*.7333;g.beginPath();g.moveTo(cx,50);g.lineTo(cx,330);g.stroke();g.setLineDash([]);
+ g.fillStyle='#9fd0ff';g.font='14px sans-serif';g.fillText('λ = '+l.toFixed(0)+' nm    A = '+A.toFixed(3)+'    %T = '+(T*100).toFixed(1),50,370);st.needsUpdate=true}
+/* label */
+function sp(t,x,y,z){const c=document.createElement('canvas');c.width=512;c.height=80;const g=c.getContext('2d');g.fillStyle='rgba(15,25,40,.85)';g.fillRect(0,0,512,80);g.strokeStyle='#5fb0ff';g.lineWidth=4;g.strokeRect(2,2,508,76);g.fillStyle='#fff';g.font='bold 38px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(t,256,42);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true}));s.scale.set(11,1.72,1);s.position.set(x,y,z);s.renderOrder=9;lab.add(s)}
+[['1. Lampu D2 (UV)',-27.5,17.5,12],['1. Lampu halogen (Vis)',-12,17.5,23],['2. Celah masuk',-29,17,5],['2. Kisi (grating)',-26,19,-14],['2. Celah keluar',-15,17,-14],['Beam splitter',-6,21.5,-14],['Cermin',-5,17,8],['3. Sampel (kuvet)',23,20,-14],['3. Referensi (kuvet)',23,20,10],['4. Detektor',32,17,-2],['5. Elektronik / ADC',20,5.5,-8],['6. Komputer',-48,24,-4]].forEach(a=>sp(...a));
+/* foton & data */
+const NP=160,pp=new Float32Array(NP*3),pc=new Float32Array(NP*3),ps=new Float32Array(NP),pch=new Uint8Array(NP),pst=new Uint8Array(NP),pab=new Uint8Array(NP),plf=new Float32Array(NP);
+const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pp,3));pg.setAttribute('color',new THREE.BufferAttribute(pc,3));
+const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:1.1,vertexColors:true,transparent:true,depthTest:false,blending:THREE.AdditiveBlending}));pts.frustumCulled=false;pts.renderOrder=5;pts.visible=false;S.add(pts);
+const pul=[];for(let i=0;i<14;i++){const o=new THREE.Mesh(new THREE.BoxGeometry(.7,.7,.7),mb(0x4dff88));inn.add(o);pul.push(o)}
+const dc=new THREE.CatmullRomCurve3([[20,8.6,-8],[22,6,-20],[22,2.3,-25],[22,2,-26.5],[22,.6,-34],[-10,.6,-36],[-42,.6,-20],[-48,5,-13.5]].map(p=>new THREE.Vector3(...p)));
+function mk(a){const v=a.map(p=>new THREE.Vector3(...p)),L=[0];for(let i=1;i<v.length;i++)L.push(L[i-1]+v[i].distanceTo(v[i-1]));return{v,L,len:L[L.length-1]}}
+function at(P,s,a,k){let i=1;while(i<P.v.length-1&&s>P.L[i])i++;const t=Math.min(1,Math.max(0,(s-P.L[i-1])/(P.L[i]-P.L[i-1]))),p=P.v[i-1],q=P.v[i];a[k]=p.x+(q.x-p.x)*t;a[k+1]=p.y+(q.y-p.y)*t;a[k+2]=p.z+(q.z-p.z)*t}
+let paths,sAbs,curUV=null,xr=false,scan=false,lam=450,acc=0,fr=0,rate=[0,0];const clk=new THREE.Clock();
+function build(uv){const pre=uv?[[-27.5,Y,12],[-22,Y,12]]:[[-22,Y,22]],c=[[-22,Y,-10],[-9,Y,-10]];paths=[mk(pre.concat(c,[[26.6,Y,-10]])),mk(pre.concat(c,[[-9,Y,6],[26.6,Y,6]]))];sAbs=paths[0].L[pre.length+1]+32;pst.fill(0);mD.color.set(uv?0x9a6cff:0x3a3550);mH.color.set(uv?0x5a5440:0xffe9a0);M1.visible=uv}
+function wl(l){let r=0,g=0,b=0;if(l<380){r=.6;g=.3;b=1}else if(l<440){r=(440-l)/60;b=1}else if(l<490){g=(l-440)/50;b=1}else if(l<510){g=1;b=(510-l)/20}else if(l<580){r=(l-510)/70;g=1}else if(l<645){r=1;g=(645-l)/65}else r=1;if(l>700)r*=Math.max(.15,.3+.7*(780-l)/80);return[r,g,b]}
+const gs=(l,c,w)=>Math.exp(-Math.pow((l-c)/w,2));
+const absA=l=>cuv[0].t>.9?(+$('rC').value/100)*(1.4*gs(l,450,45)+.9*gs(l,260,28)):0;
+function setX(on){[cream,blue,slate].forEach(m=>{m.transparent=on;m.opacity=on?.12:1;m.depthWrite=!on;m.needsUpdate=true});S.background.set(on?0x0f141a:(dark?0x1b2027:0xe9edf1));fl.visible=!on}
+function tick(){const dt=Math.min(clk.getDelta(),.05);if(!xr)return;fr++;
+ if(scan){lam=Math.min(800,lam+75*dt);$('rL').value=lam;if(lam>=800){scan=false;$('bS').textContent='Pindai 200–800 nm'}}else lam=+$('rL').value;
+ const uv=lam<340;if(uv!==curUV){curUV=uv;build(uv)}
+ GR.rotation.y=Math.PI/4+(lam-500)/600*.7;
+ const A=absA(lam),T=Math.pow(10,-A),pA=1-T,col=wl(lam);spec[Math.round(lam-200)]=A;
+ acc=Math.min(acc+dt*50,3);for(let i=0;i<NP&&acc>=1;i++)if(!pst[i]){acc--;pst[i]=1;ps[i]=0;pab[i]=0;pch[i]=Math.random()<.5?0:1}
+ const cnt=[0,0];
+ for(let i=0,k=0;i<NP;i++,k+=3){if(!pst[i]){pp[k+1]=-50;continue}const P=paths[pch[i]];
+  if(pst[i]==1){ps[i]+=30*dt;
+   if(pch[i]==0&&!pab[i]&&ps[i]>=sAbs){pab[i]=1;if(Math.random()<pA){pst[i]=2;plf[i]=.5;ps[i]=sAbs}}
+   if(ps[i]>=P.len){cnt[pch[i]]++;pst[i]=0;pp[k+1]=-50;continue}
+   if(pst[i]==1){at(P,ps[i],pp,k);pc[k]=col[0];pc[k+1]=col[1];pc[k+2]=col[2]}}
+  if(pst[i]==2){plf[i]-=dt;if(plf[i]<=0){pst[i]=0;pp[k+1]=-50;continue}at(P,ps[i],pp,k);pp[k]+=(Math.random()-.5)*.9;pp[k+1]+=(Math.random()-.5)*.9;pp[k+2]+=(Math.random()-.5)*.9;const f=plf[i]/.5;pc[k]=f;pc[k+1]=.35*f;pc[k+2]=.05*f}}
+ pg.attributes.position.needsUpdate=pg.attributes.color.needsUpdate=true;
+ [0,1].forEach(c=>{rate[c]+=(cnt[c]/Math.max(dt,.001)-rate[c])*.06;const s=.12+.88*Math.min(1,rate[c]/25);dw[c].color.setRGB(s,s*.7,s*.28)});
+ const tm=performance.now()/4000;pul.forEach((o,i)=>o.position.copy(dc.getPointAt((tm+i/14)%1)));
+ if(fr%5==0){scr(lam,A,T);$('vL').textContent=lam.toFixed(0);$('vC').textContent=$('rC').value;
+  $('ro').innerHTML='Sumber: <b>'+(uv?'Lampu D2 (UV)':'Lampu halogen (Vis)')+'</b><br>Sampel: '+(cuv[0].t>.9?'ada':'belum dimasukkan')+'<br>Diserap: <b>'+(pA*100).toFixed(1)+'%</b> · Diteruskan: <b>'+(T*100).toFixed(1)+'%</b><br>Absorbansi A = −log(I/I₀) = <b>'+A.toFixed(3)+'</b>'}}
+$('bX').onclick=()=>{xr=!xr;setX(xr);inn.visible=lab.visible=pts.visible=xr;$('p').style.display=xr?'block':'none';$('bX').textContent=xr?'Tutup tampilan komponen':'Komponen dalam (X-ray)';if(xr){cuv.forEach(c=>c.goal=1);upd();curUV=null;view([14,78,78],[-10,12,-4])}};
+$('bAll').onclick=()=>view([0,65,125],[-10,10,-5]);
+$('bS').onclick=()=>{if(scan){scan=false;$('bS').textContent='Pindai 200–800 nm';return}spec.fill(null);lam=200;scan=true;$('bS').textContent='Hentikan pindai'};
+$('rC').oninput=()=>spec.fill(null);
+R.setAnimationLoop(()=>{
+ lidT+=(lidGoal-lidT)*.08;lid.rotation.x=-lidT*1.75;
+ cuv.forEach(c=>{c.t+=(c.goal-c.t)*.1;c.g.position.y=14.25+(1-c.t)*10;c.g.visible=lidT>.25||c.t>.98});
+ if(goal){cam.position.lerp(goal.p,.08);ctl.target.lerp(goal.t,.08);if(cam.position.distanceTo(goal.p)<.3)goal=null}
+ tick();ctl.update();R.render(S,cam)});
+cv.addEventListener('pointerdown',()=>{goal=null});
+</script></body></html>
