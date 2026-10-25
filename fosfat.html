@@ -67,8 +67,7 @@ details{border-top:1px solid var(--bd);padding:6px 0}summary{cursor:pointer;font
 <div class="card" style="margin-top:14px"><h3>Tahapan metode (ringkas)</h3><ol><li>Buat larutan induk fosfat (mis. 50 mg/L P dari KH₂PO₄ kering) dan deret standar, mis. 0,2–1,0 mg/L.</li><li>Ambil volume sampel yang sama dengan standar, saring bila keruh.</li><li>Tambahkan reagen gabungan (amonium molibdat, asam sulfat, antimon kalium tartrat, asam askorbat) dan campur.</li><li>Diamkan hingga warna stabil (umumnya 10–30 menit).</li><li>Ukur absorbansi blanko, standar, dan sampel pada λ maksimum (≈ 880 nm) dengan kuvet 1 cm.</li><li>Buat kurva kalibrasi A terhadap konsentrasi, hitung kadar sampel.</li></ol><small>Ini ringkasan edukasi. Volume dan konsentrasi pasti mengikuti SOP/metode acuan yang dipakai laboratorium.</small></div></section>
 
 <section id="hitung"><h2>Perhitungan</h2>
-<div class="g2"><div class="card"><b>1. Kurva kalibrasi</b> <small>(data contoh, ganti dengan data Anda)</small><table><thead><tr><th>C (mg/L P)</th><th>Absorbansi</th></tr></thead><tbody id="tb"></tbody></table>
-<p>Absorbansi sampel <input id="as" value="0.189" style="width:90px;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:4px 6px"><br>Faktor pengenceran <input id="fp" value="1" style="width:90px;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:4px 6px"></p></div>
+<div class="g2"><div class="card"><b>1. Kurva kalibrasi</b> <small>(data contoh, ganti dengan data Anda)</small><table><thead><tr><th>C (mg/L P)</th><th>Absorbansi</th></tr></thead><tbody id="tb"></tbody></table></div>
 <div class="card"><canvas id="ch" width="520" height="240"></canvas><div class="eq" id="res"></div></div></div>
 <div id='sx'></div>
 <div class="card" style="margin-top:14px"><div class="eq">y = a + b·x → x = (A sampel − a) / b<br>Kadar P (mg/L) = x × faktor pengenceran<br>Kadar PO₄³⁻ (mg/L) = kadar P × 3,066<br>Kadar pupuk (mg/kg) = (C − C blanko) × FP × V pelarut (mL) / bobot sampel (g)<br>Kadar air (mg/L) = (C − C blanko) × FP × V akhir (mL) / volume sampel (mL)<br>%P = mg/kg / 10.000<br>%RPD = |K1 − K2| / rata-rata × 100<br>C2 (spike) = massa spike (mg) × 1000 / bobot (g) atau volume (mL)<br>C3 (sampel + spike) = (C − C blanko) × FP × V / bobot (g) atau volume (mL)<br>%Recovery = (C3 − C1) / C2 × 100</div></div></section>
@@ -247,12 +246,12 @@ $('tb').innerHTML=rows.map((r,i)=>'<tr><td><input data-i="'+i+'" data-j="0" valu
 function calc(){const d=[...document.querySelectorAll('#tb input')].reduce((a,e)=>{(a[+e.dataset.i]=a[+e.dataset.i]||[])[+e.dataset.j]=parseFloat(String(e.value).replace(',','.'));return a},[]).filter(r=>r.length==2&&isFinite(r[0])&&isFinite(r[1]));
  const n=d.length;if(n<3){$('res').textContent='Isi minimal 3 titik standar.';return}
  let sx=0,sy=0,sxy=0,sxx=0,syy=0;d.forEach(([x,y])=>{sx+=x;sy+=y;sxy+=x*y;sxx+=x*x;syy+=y*y});const den=n*sxx-sx*sx,b=(n*sxy-sx*sy)/den,a=(sy-b*sx)/n,r=(n*sxy-sx*sy)/Math.sqrt(den*(n*syy-sy*sy));
- const As=parseFloat(String($('as').value).replace(',','.')),fp=parseFloat(String($('fp').value).replace(',','.'))||1,x=(As-a)/b,P=x*fp;big(a,b);
- $('res').innerHTML='y = '+a.toFixed(4)+' + '+b.toFixed(4)+'x<br>r = '+r.toFixed(4)+' (r² = '+(r*r).toFixed(4)+')<br>x sampel = '+x.toFixed(3)+' mg/L<br>Kadar P = <b>'+P.toFixed(3)+' mg/L</b><br>Kadar PO₄³⁻ = <b>'+(P*3.066).toFixed(3)+' mg/L</b>';
- const c=$('ch'),g=c.getContext('2d'),fg=getComputedStyle(document.body).color,W=c.width,H=c.height,mx=Math.max(...d.map(p=>p[0]),x)*1.1||1,my=Math.max(...d.map(p=>p[1]),As)*1.15||1,X=v=>45+v/mx*(W-65),Y2=v=>H-30-v/my*(H-50);
+ big(a,b);
+ $('res').innerHTML='y = '+a.toFixed(4)+' + '+b.toFixed(4)+'x<br>r = '+r.toFixed(4)+' (r² = '+(r*r).toFixed(4)+')';
+ const c=$('ch'),g=c.getContext('2d'),fg=getComputedStyle(document.body).color,W=c.width,H=c.height,mx=Math.max(...d.map(p=>p[0]))*1.1||1,my=Math.max(...d.map(p=>p[1]))*1.15||1,X=v=>45+v/mx*(W-65),Y2=v=>H-30-v/my*(H-50);
  g.clearRect(0,0,W,H);g.strokeStyle=fg;g.fillStyle=fg;g.globalAlpha=.5;g.beginPath();g.moveTo(45,10);g.lineTo(45,H-30);g.lineTo(W-15,H-30);g.stroke();g.globalAlpha=1;g.font='12px sans-serif';g.fillText('Absorbansi',4,12);g.fillText('C (mg/L P)',W-80,H-8);
  g.strokeStyle='#0b9a92';g.lineWidth=2;g.beginPath();g.moveTo(X(0),Y2(a));g.lineTo(X(mx),Y2(a+b*mx));g.stroke();g.fillStyle='#0b9a92';d.forEach(([u,v])=>{g.beginPath();g.arc(X(u),Y2(v),4,0,7);g.fill()});
- g.strokeStyle='#d62828';g.fillStyle='#d62828';g.setLineDash([5,4]);g.lineWidth=1;g.beginPath();g.moveTo(45,Y2(As));g.lineTo(X(x),Y2(As));g.lineTo(X(x),H-30);g.stroke();g.setLineDash([]);g.beginPath();g.arc(X(x),Y2(As),5,0,7);g.fill()}
+ }
 const num=id=>parseFloat(String($(id).value).replace(',','.')),fm=(v,n)=>isFinite(v)?v.toLocaleString('id-ID',{minimumFractionDigits:n,maximumFractionDigits:n}):'–',inp=(id,v)=>`<input class='in' id='${id}' value='${v}'>`;
 /* versi lama (dinonaktifkan)
 const W0=[.0102,.0098,.0105,.0101,.0099],A1=[.612,.578,.632,.6,.59],A2=[.796,.769,.822,.791,.778],R0=[.601,.598,.606,.595,.603,.599],I5=[0,1,2,3,4];
@@ -288,5 +287,5 @@ function big(a,b){const pup=MD=='p',FP=num('kLb')/num('kPp'),Vp=num('kVp'),d0=pu
  const cz=(num('zA0')-a)/b;$('zC0').textContent=fm(cz,3);const C3=line('z',1,cz),ms=num('zCs')*num('zVs')/1000,C2=ms*1000/num('zW1'),rec=(C3-Mn)/C2*100,ok=rec>=num('zLo')&&rec<=num('zHi');
  $('z1').textContent=fm(Mn,d0);$('z2').textContent=fm(C2,d0);$('zM').textContent=fm(ms,3)+' mg';$('z3').textContent=fm(C3,d0);$('zR').textContent=fm(rec,2)+' %';$('zS').innerHTML=stt(ok,ok?'Dalam rentang':'Di luar rentang');
  if(!pup){const W=num('zW1'),cx=(num('zA1')-a)/b;$('zE2').textContent='C2 = '+fm(ms,3)+' mg × 1000 / '+fm(W,0)+' mL = '+fm(C2,d0)+' mg/L';$('zE3').textContent='C3 = ('+fm(cx,3)+' − '+fm(cz,3)+') × '+fm(FP,2)+' × '+fm(Vp,0)+' / '+fm(W,0)+' = '+fm(C3,d0)+' mg/L';$('zE4').textContent='(' +fm(C3,d0)+' − '+fm(Mn,d0)+') / '+fm(C2,d0)+' × 100 = '+fm(rec,2)+' %'}}
-bld('p');document.querySelectorAll('#tb input,#as,#fp').forEach(e=>e.oninput=calc);calc();matchMedia('(prefers-color-scheme: dark)').onchange=calc;
+bld('p');document.querySelectorAll('#tb input').forEach(e=>e.oninput=calc);calc();matchMedia('(prefers-color-scheme: dark)').onchange=calc;
 </script></body></html>
